@@ -41,6 +41,12 @@
     flex-direction:column;
     align-items:flex-start;
     margin:auto 0;
+    animation:fadeIn .9s ease both;
+  }
+
+  @keyframes fadeIn{
+    from{opacity:0;transform:translateY(8px)}
+    to{opacity:1;transform:translateY(0)}
   }
   body::before{
     content:"";
@@ -133,6 +139,11 @@
     color:#faff00;
     background:#005e1a;
   }
+  .btn--ball{
+    font-family:"Inter",sans-serif;
+    color:#0b0b0c;
+    background:#e5e7eb;
+  }
 
   a{text-decoration:none}
 
@@ -210,6 +221,7 @@
     <div class="buttons">
       <a class="btn btn--rtx" href="https://rtxmkt.carrd.co/" target="_blank" rel="noopener">RTX MKT</a>
       <a class="btn btn--arena" href="https://autopostoarena.carrd.co/" target="_blank" rel="noopener">Auto Posto Arena</a>
+      <a class="btn btn--ball" href="bola-geodesica.html" id="ball-link">Bola Geodésica</a>
     </div>
   </main>
 
@@ -220,27 +232,40 @@
     </div>
     <iframe id="cv-iframe" src="" title="Currículo"></iframe>
   </section>
+
+  <section class="cv-panel" id="ball-panel">
+    <div class="cv-panel-head">
+      <span>Bola Geodésica</span>
+      <button type="button" class="cv-panel-close" id="ball-panel-close" aria-label="Fechar">&times;</button>
+    </div>
+    <iframe id="ball-iframe" src="" title="Bola Geodésica"></iframe>
+  </section>
   </div>
 
   <script>
-    var cvLink = document.getElementById('cv-link');
-    var cvPanel = document.getElementById('cv-panel');
-    var cvIframe = document.getElementById('cv-iframe');
-    var cvClose = document.getElementById('cv-panel-close');
-    var cvSrc = cvLink.getAttribute('href');
+    function setupPanel(linkId, panelId, iframeId, closeId){
+      var link = document.getElementById(linkId);
+      var panel = document.getElementById(panelId);
+      var iframe = document.getElementById(iframeId);
+      var close = document.getElementById(closeId);
+      var src = link.getAttribute('href');
 
-    cvLink.addEventListener('click', function(e){
-      e.preventDefault();
-      var isOpen = cvPanel.classList.toggle('is-open');
-      if(isOpen){
-        if(!cvIframe.getAttribute('src')) cvIframe.setAttribute('src', cvSrc);
-        cvPanel.scrollIntoView({behavior:'smooth', block:'start'});
-      }
-    });
+      link.addEventListener('click', function(e){
+        e.preventDefault();
+        var isOpen = panel.classList.toggle('is-open');
+        if(isOpen){
+          if(!iframe.getAttribute('src')) iframe.setAttribute('src', src);
+          panel.scrollIntoView({behavior:'smooth', block:'start'});
+        }
+      });
 
-    cvClose.addEventListener('click', function(){
-      cvPanel.classList.remove('is-open');
-    });
+      close.addEventListener('click', function(){
+        panel.classList.remove('is-open');
+      });
+    }
+
+    setupPanel('cv-link', 'cv-panel', 'cv-iframe', 'cv-panel-close');
+    setupPanel('ball-link', 'ball-panel', 'ball-iframe', 'ball-panel-close');
   </script>
 </body>
 </html>

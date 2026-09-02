@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bola geodésica</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0B0B0C; }
+    #ball { width: 100%; height: 100%; touch-action: none; position: relative; }
+    #morphBtn {
+      position: absolute;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      padding: 9px 20px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.35);
+      background: rgba(255,255,255,.06);
+      backdrop-filter: blur(8px);
+      color: #eee;
+      font: 500 13px/1.4 -apple-system, "Segoe UI", sans-serif;
+      cursor: pointer;
+      transition: background .18s ease, transform .18s ease;
+    }
+    #morphBtn:hover { background: rgba(255,255,255,.14); transform: translateX(-50%) translateY(-2px); }
+  </style>
+</head>
+<body>
+  <div id="ball">
+    <button id="morphBtn" type="button">Transformar em cubo</button>
+  </div>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+    if (!("WebGL2RenderingContext" in window)) {
+      document.getElementById("ball").innerHTML =
+        '<p style="color:#ccc;font-family:sans-serif;text-align:center;padding-top:40%">Seu navegador não suporta WebGL.</p>';
+      throw new Error("WebGL2 not supported");
+    }
+
+    const host = document.getElementById("ball");
+    const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 480;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, smallScreen ? 1.5 : 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    host.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0b0c);
+
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.6).texture;
+    pmrem.dispose();
+
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 40);
+    camera.position.set(0, 0.08, 5.1);
+
+    scene.add(new THREE.AmbientLight(0xf2f3f4, 0.38));
+    const key = new THREE.DirectionalLight(0xffffff, 1.25);
+    key.position.set(4.2, 5.4, 6);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xb8bcc4, 0.32);
+    fill.position.set(-5, -1.5, 3);
+    scene.add(fill);
+
+    const R = 1.62;
+    const src = new THREE.IcosahedronGeometry(R, smallScreen ? 1 : 2);
+    const geo = src.index ? src.toNonIndexed() : src;
+    if (src.index) src.dispose();
+
+    const pos = geo.getAttribute("position");
+    const rest = Float32Array.from(pos.array);
+
+    const cubeRest = new Float32Array(rest.length);
+    for (let i = 0; i < rest.length; i += 3) {
+      const x = rest[i], y = rest[i + 1], z = rest[i + 2];
+      const m = Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) || 1;
+      const s = R / m;
+      cubeRest[i] = x * s;
+      cubeRest[i + 1] = y * s;
+      cubeRest[i + 2] = z * s;
+    }
+
+    // regular-tetrahedron face normals (unit length). Its inradius is 1/3 of
+    // its circumradius, so scale by that ratio to keep vertices from
+    // overshooting the sphere/cube's visual size.
+    const k = 1 / Math.sqrt(3);
+    const tetraNormals = [
+      [-k, -k, -k], [-k, k, k], [k, -k, k], [k, k, -k],
+    ];
+    const tetraInradius = (R * 1.6) / 3;
+    const tetraRest = new Float32Array(rest.length);
+    for (let i = 0; i < rest.length; i += 3) {
+      const x = rest[i], y = rest[i + 1], z = rest[i + 2];
+      const len = Math.hypot(x, y, z) || 1;
+      const dx = x / len, dy = y / len, dz = z / len;
+      let maxDot = -Infinity;
+      for (const [nx, ny, nz] of tetraNormals) {
+        maxDot = Math.max(maxDot, dx * nx + dy * ny + dz * nz);
+      }
+      const s = tetraInradius / maxDot;
+      tetraRest[i] = dx * s;
+      tetraRest[i + 1] = dy * s;
+      tetraRest[i + 2] = dz * s;
+    }
+
+    const shapes = [rest, cubeRest, tetraRest];
+    const base = new THREE.Color(0xc7cbd3);
+    const hot = new THREE.Color(0xffd9a8);
+
+    const colors = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      colors[i * 3] = base.r;
+      colors[i * 3 + 1] = base.g;
+      colors[i * 3 + 2] = base.b;
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+
+    const innerGeo = new THREE.BufferGeometry();
+    innerGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(rest.length), 3));
+    innerGeo.computeVertexNormals();
+
+    const coreMat = new THREE.MeshStandardMaterial({
+      color: 0x141416, roughness: 0.92, metalness: 0.12,
+    });
+    const shellMat = new THREE.MeshPhysicalMaterial({
+      vertexColors: true,
+      flatShading: true,
+      metalness: 0.4,
+      roughness: 0.42,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.4,
+      envMapIntensity: 0.35,
+    });
+
+    const globe = new THREE.Group();
+    globe.add(new THREE.Mesh(innerGeo, coreMat));
+    const shell = new THREE.Mesh(geo, shellMat);
+    const hit = new THREE.Mesh(
+      new THREE.SphereGeometry(R, 32, 24),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    globe.add(shell, hit);
+    scene.add(globe);
+
+    const faceCount = pos.count / 3;
+    const lifts = new Float32Array(faceCount);
+    const ab = new THREE.Vector3();
+    const ac = new THREE.Vector3();
+    const n = new THREE.Vector3();
+
+    const ray = new THREE.Raycaster();
+    const pointer = new THREE.Vector2(0, 0);
+    const pointerSmooth = new THREE.Vector2(0, 0);
+    const hitPoint = new THREE.Vector3();
+    const hitN = new THREE.Vector3(0, 1, 0);
+    const pulseDir = new THREE.Vector3(0, 1, 0);
+    const scratch = new THREE.Vector3();
+    const tint = new THREE.Color();
+
+    let hasHit = false;
+    let dragging = false;
+    let lastX = 0;
+    let velY = 0;
+    let pulseT = 8;
+    let rotY = 0;
+    let rotX = 0;
+    let shapeIndex = 0; // 0 esfera, 1 cubo, 2 triângulo (tetraedro)
+    const shapeLabels = ["Transformar em cubo", "Transformar em triângulo", "Voltar para esfera"];
+    const fromShape = Float32Array.from(rest);
+    let toShape = shapes[0];
+    let morphStart = 0;
+    const morphDuration = 1.1;
+    function ease(t) { return t * t * (3 - 2 * t); }
+
+    const morphBtn = document.getElementById("morphBtn");
+    morphBtn.addEventListener("click", () => {
+      const t = ease(Math.min(1, (clock.getElapsedTime() - morphStart) / morphDuration));
+      for (let i = 0; i < fromShape.length; i++) {
+        fromShape[i] = THREE.MathUtils.lerp(fromShape[i], toShape[i], t);
+      }
+      shapeIndex = (shapeIndex + 1) % 3;
+      morphBtn.textContent = shapeLabels[shapeIndex];
+      toShape = shapes[shapeIndex];
+      morphStart = clock.getElapsedTime();
+    });
+
+    function onPointer(e) {
+      const r = host.getBoundingClientRect();
+      const cx = (e.clientX ?? e.touches?.[0]?.clientX) - r.left;
+      const cy = (e.clientY ?? e.touches?.[0]?.clientY) - r.top;
+      pointer.x = (cx / r.width) * 2 - 1;
+      pointer.y = -(cy / r.height) * 2 + 1;
+      if (dragging) {
+        velY += (cx - lastX) * 0.0032;
+        lastX = cx;
+      }
+    }
+
+    host.addEventListener("pointermove", onPointer, { passive: true });
+    host.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("#morphBtn")) return;
+      dragging = true;
+      host.setPointerCapture(e.pointerId);
+      lastX = e.clientX - host.getBoundingClientRect().left;
+      pulseT = 0;
+      if (hasHit) pulseDir.copy(hitPoint).normalize();
+      else pulseDir.set(0, 1, 0);
+    });
+    host.addEventListener("pointerup", () => { dragging = false; });
+    host.addEventListener("pointercancel", () => { dragging = false; });
+    host.addEventListener("pointerleave", () => { dragging = false; });
+
+    function resize() {
+      const w = Math.max(1, host.clientWidth);
+      const h = Math.max(1, host.clientHeight);
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    new ResizeObserver(resize).observe(host);
+    resize();
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) renderer.setAnimationLoop(null);
+      else renderer.setAnimationLoop(tick);
+    });
+
+    const clock = new THREE.Clock();
+    const colAttr = geo.getAttribute("color");
+    const innerPos = innerGeo.getAttribute("position");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const baseA = new THREE.Vector3();
+    const baseB = new THREE.Vector3();
+    const baseC = new THREE.Vector3();
+
+    function blendVertex(out, i, t) {
+      out.set(
+        THREE.MathUtils.lerp(fromShape[i * 3], toShape[i * 3], t),
+        THREE.MathUtils.lerp(fromShape[i * 3 + 1], toShape[i * 3 + 1], t),
+        THREE.MathUtils.lerp(fromShape[i * 3 + 2], toShape[i * 3 + 2], t)
+      );
+    }
+
+    function tick() {
+      const dt = Math.min(clock.getDelta(), 1 / 30);
+
+      pointerSmooth.x = THREE.MathUtils.damp(pointerSmooth.x, pointer.x, 7, dt);
+      pointerSmooth.y = THREE.MathUtils.damp(pointerSmooth.y, pointer.y, 7, dt);
+
+      ray.setFromCamera(pointerSmooth, camera);
+      const hits = ray.intersectObject(hit);
+      hasHit = hits.length > 0;
+      if (hasHit) hitPoint.copy(hits[0].point);
+
+      pulseT += dt;
+      velY *= Math.exp(-4.2 * dt);
+      const auto = reduce ? 0 : 0.22;
+      rotY += (auto + velY) * dt;
+      const targetX = pointerSmooth.y * 0.28;
+      rotX = THREE.MathUtils.damp(rotX, targetX, 5.5, dt);
+      globe.rotation.set(rotX, rotY, 0);
+      const morphT = ease(Math.min(1, (clock.getElapsedTime() - morphStart) / morphDuration));
+
+      if (hasHit) hitN.copy(hitPoint).normalize();
+
+      for (let f = 0; f < faceCount; f++) {
+        const i0 = f * 3;
+        blendVertex(baseA, i0, morphT);
+        blendVertex(baseB, i0 + 1, morphT);
+        blendVertex(baseC, i0 + 2, morphT);
+        n.crossVectors(ab.subVectors(baseB, baseA), ac.subVectors(baseC, baseA)).normalize();
+        const cx = (baseA.x + baseB.x + baseC.x) / 3;
+        const cy = (baseA.y + baseB.y + baseC.y) / 3;
+        const cz = (baseA.z + baseB.z + baseC.z) / 3;
+        if (n.x * cx + n.y * cy + n.z * cz < 0) n.negate();
+
+        let target = 0;
+        if (hasHit) {
+          const ang = 1 - Math.max(0, n.dot(hitN));
+          target += Math.exp(-ang * 14) * 0.028;
+        }
+        if (pulseT < 1.6) {
+          const pd = 1 - Math.max(0, n.dot(pulseDir));
+          const wave = Math.abs(pd * 5.2 - pulseT * 3.4);
+          if (wave < 0.7) target += (1 - wave / 0.7) * 0.04;
+        }
+        lifts[f] = THREE.MathUtils.damp(lifts[f], target, 10, dt);
+        const lift = lifts[f];
+        tint.copy(base).lerp(hot, Math.min(1, lift * 18));
+
+        const verts = [baseA, baseB, baseC];
+        for (let k = 0; k < 3; k++) {
+          const i = i0 + k;
+          scratch.copy(verts[k]).addScaledVector(n, lift);
+          pos.setXYZ(i, scratch.x, scratch.y, scratch.z);
+          colAttr.setXYZ(i, tint.r, tint.g, tint.b);
+          innerPos.setXYZ(i, verts[k].x * 0.985, verts[k].y * 0.985, verts[k].z * 0.985);
+        }
+      }
+      pos.needsUpdate = true;
+      colAttr.needsUpdate = true;
+      innerPos.needsUpdate = true;
+      geo.computeVertexNormals();
+      innerGeo.computeVertexNormals();
+      renderer.render(scene, camera);
+    }
+    renderer.setAnimationLoop(tick);
+  </script>
+</body>
+</html>
