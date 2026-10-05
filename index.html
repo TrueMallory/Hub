@@ -35,12 +35,18 @@
     flex-direction:column;
     align-items:flex-start;
     margin:auto 0;
-    animation:fadeIn .9s ease both;
+    /* entra só depois que o fundo já apareceu (2,5s) */
+    animation:contentIn 1.3s cubic-bezier(.22,.61,.36,1) 2.5s backwards;
   }
 
-  @keyframes fadeIn{
-    from{opacity:0;transform:translateY(8px)}
-    to{opacity:1;transform:translateY(0)}
+  @keyframes contentIn{
+    from{opacity:0;transform:translateY(18px) scale(.985)}
+    to{opacity:1;transform:translateY(0) scale(1)}
+  }
+  /* o fundo emerge do preto */
+  @keyframes bgIn{
+    from{opacity:0}
+    to{opacity:var(--o,1)}
   }
   /* brilho em gradiente: núcleo escuro, aro azul, borda amarelo/laranja/rosa */
   body::before,
@@ -59,7 +65,7 @@
     height:120vmin;
     right:-28vmin;
     bottom:-48vmin;
-    animation:drift 9s ease-in-out infinite alternate, hue 16s linear infinite;
+    animation:bgIn 2.4s cubic-bezier(.22,.61,.36,1) .2s backwards, drift 9s ease-in-out infinite alternate, hue 16s linear infinite;
   }
   body::after{
     width:46vmin;
@@ -67,7 +73,8 @@
     right:34vmin;
     top:-16vmin;
     opacity:.8;
-    animation:drift 12s ease-in-out infinite alternate-reverse, hue 16s linear infinite reverse;
+    --o:.8;
+    animation:bgIn 2.4s cubic-bezier(.22,.61,.36,1) .5s backwards, drift 12s ease-in-out infinite alternate-reverse, hue 16s linear infinite reverse;
   }
   @keyframes drift{
     from{transform:translate(0,0) rotate(0deg) scale(.92)}
@@ -78,7 +85,7 @@
     50%{filter:blur(22px) hue-rotate(28deg)}
   }
   @media (prefers-reduced-motion:reduce){
-    body::before,body::after{animation:none}
+    body::before,body::after,.stack{animation:none}
   }
 
   .card{
